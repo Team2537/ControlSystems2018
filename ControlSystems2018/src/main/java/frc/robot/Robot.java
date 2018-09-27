@@ -21,14 +21,13 @@ import edu.wpi.first.wpilibj.drive.DifferentialDrive;
  * directory.
  */
 public class Robot extends IterativeRobot {
-  private final DifferentialDrive m_robotDrive
-      = new DifferentialDrive(new Spark(0), new Spark(1));
+  private final DifferentialDrive m_robotDrive = new DifferentialDrive(new Spark(0), new Spark(1));
   private final Joystick m_stick = new Joystick(0);
   private final Timer m_timer = new Timer();
 
   /**
-   * This function is run when the robot is first started up and should be
-   * used for any initialization code.
+   * This function is run when the robot is first started up and should be used
+   * for any initialization code.
    */
   @Override
   public void robotInit() {
