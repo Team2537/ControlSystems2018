@@ -7,38 +7,72 @@ public class Vec2 {
         this.x = x;
         this.y = y;
     }
+    /** Returns the sum of two vectors. */
     public static Vec2 add(Vec2 a, Vec2 b){
         return new Vec2(a.x + b.x, a.y + b.y);
     }
+    /** Returns the sum of this vector and another vector. */
     public Vec2 add(Vec2 other){
         return add(this, other);
     }
+    /** Returns a copy of vector v scaled by a factor of k. */
     public static Vec2 scale(Vec2 v, double k){
         return new Vec2(v.x * k, v.y * k);
     }
+    /** Returns a copy of this vector scaled by a factor of k. */
     public Vec2 scale(double k){
         return scale(this, k);
     }
+    /** Returns a copy of vector v scaled by -1. */
     public static Vec2 inverse(Vec2 v){
         return v.scale(-1);
     }
+    /** Returns a copy of this vector scaled by -1. */
     public Vec2 inverse(){
         return inverse(this);
     }
+    /** Returns the difference of two vectors (a - b). */
     public static Vec2 diff(Vec2 a, Vec2 b){
         return add(a,b.inverse());
     }
+    /** Returns the difference of this vector and another vector (this - other). */
     public Vec2 diff(Vec2 other){
         return diff(this, other);
     }
+    /** Returns the magnitude (length) of the vector. */
     public static double mag(Vec2 v){
         if(v.mag == -1){
             v.mag = Math.hypot(v.x, v.y);
         }
         return v.mag;
     }
+    /** Returns the magnitude (length) of this vector. */
     public double mag(){
         return mag(this);
+    }
+    /** Returns a normalized (length = 1) version of the vector. */
+    public static Vec2 normal(Vec2 v){
+        return v.scale(1/v.mag());
+    }
+    /** Returns a normalized (length = 1) version of this vector. */
+    public Vec2 normal(){
+        return normal(this);
+    }
+    /** Returns the dot product of the two vectors. */
+    public static double dot(Vec2 a, Vec2 b){
+        return a.x*b.x + a.y*b.y;
+    }
+    /** Returns the dot product of this vector and another vector. */
+    public double dot(Vec2 other){
+        return dot(this, other);
+    }
+    /** Returns the angle between two vectors. */
+    public static double angle(Vec2 a, Vec2 b){
+        return Math.acos(dot(a.normal(),b.normal()));
+    }
+    /** Returns the angle between this vector and another vector. */
+    public double angle(Vec2 other){
+        return angle(this,other);
     }
 
     @Override

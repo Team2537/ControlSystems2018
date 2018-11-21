@@ -9,11 +9,13 @@ public class MotionState {
     public static final double length = 1;
     public final Vec2 pos;
     public final double t, angle, angVel, angAcc, vel, acc, velL, velR, accL, accR, curvature;
+    private boolean kinematicsComputed;
     public MotionState(double t, 
                     Vec2 pos, double vel, double acc, 
                     double angle, double angVel, double angAcc,
                     double velL, double velR, double accL, double accR,
                     double curvature){
+        kinematicsComputed = false;
         this.t = t;
         this.pos = pos;
         this.vel = vel;
@@ -38,12 +40,30 @@ public class MotionState {
             t,
             pos, vel, acc,
             angle, angVel, angAcc,
-            vel - 0.5*angVel*length,
-            vel + 0.5*angVel*length,
-            acc - 0.5*angAcc*length,
-            acc + 0.5*angAcc*length,
-            angVel / vel
+            vel - 0.5*angVel*length,    // left wheel velocity
+            vel + 0.5*angVel*length,    // right wheel velocity
+            acc - 0.5*angAcc*length,    // left wheel acceleration
+            acc + 0.5*angAcc*length,    // right wheel acceleration
+            angVel / vel                // curvature
         );
+    }
+
+    /** Returns a new MotionState, replacing the old one's accelerations by using
+     * the linear and angular acceleration parameters.
+     */
+    public static MotionState controlAngular(MotionState old, double acc, double angAcc){
+        return fromAngular(
+            old.t,
+            old.pos, old.vel, acc,
+            old.angle, old.angVel, angAcc
+        );
+    }
+
+    /** Returns a new MotionState, replacing the old one's accelerations by using
+     * the linear and angular acceleration parameters.
+     */
+    public MotionState controlAngular(double acc, double angAcc){
+        return controlAngular(this, acc, angAcc);
     }
 
     /** Returns a new MotionState, inferring angular motion and curvature
@@ -55,98 +75,117 @@ public class MotionState {
                         double accL, double accR){
         return new MotionState(
             t,
-            pos, (velR+velL)/2, (accR+accL)/2,
-            angle, (velR-velL)/length, (accR-accL)/length,
+            pos, (velR+velL)/2, (accR+accL)/2,              // linear velocity and acceleration
+            angle, (velR-velL)/length, (accR-accL)/length,  // angular velocity and acceleration
             velL, velR, accL, accR,
-            (2*(velR-velL))/(length*(velR+velL))
+            (2*(velR-velL))/(length*(velR+velL))            // curvature
         );
     }
 
+    /** Returns a new MotionState, replacing the old one's accelerations by using
+     * the wheel accelerations parameters.
+     */
+    public static MotionState controlWheels(MotionState old, double accL, double accR){
+        return fromWheels(
+            old.t,
+            old.pos, old.angle, 
+            old.velL, old.velR, 
+            accL, accR
+        );
+    }
+
+    /** Returns a new MotionState, replacing the old one's accelerations by using
+     * the wheel accelerations parameters.
+     */
+    public MotionState controlWheels(double accL, double accR){
+        return controlWheels(this, accL, accR);
+    }
+
+    private static final double sqrtPi = Math.sqrt(Math.PI);
+    private double a_aA, sqrtAngAcc, scalar, sinS, cosS, o, inner0;
+
     /** Calculates and returns the new MotionState of the robot after driving for some time, 
-     * given its previous state, the change in time, and constant wheel accelerations.
-     * @param prev The previous MotionState.
+     * given its previous state and the change in time.
+     * @param start The previous MotionState.
      * @param dt Amount of time elapsed between the old and new MotionStates.
-     * @param accL Constant acceleration of the left wheel during this period.
-     * @param accR Constant acceleration of the right wheel during this period.
      * @return The new MotionState.
      */
-    public static MotionState forwardKinematicsWheels(MotionState prev, double dt, double accL, double accR){
-        double acc = (accR+accL)/2, angAcc = (accR-accL)/length;
-        double vel = acc*dt + prev.vel, angVel = angAcc*dt + prev.angVel;
-        double angle = 0.5*angAcc*dt*dt + prev.angVel*dt + prev.angle;
+    public static MotionState forwardKinematics(MotionState start, double dt){
+        if(Util.epsilonEquals(dt, 0)) return start;
+
+        double vel = start.acc*dt + start.vel, angVel = start.angAcc*dt + start.angVel;
+        double angle = 0.5*start.angAcc*dt*dt + start.angVel*dt + start.angle;
 
         /* To calculate the change in x and y based on the given wheel accelerations and
          * the previous state, we must integrate over the x- and y-velocity functions:
          * v_x(t) = v(t)*cos(angle(t))  and  v_y(t) = v(t)*sin(angle(t)) .
          */
         double dx, dy;
-        if(Util.epsilonEquals(angAcc, 0)){
-            if(Util.epsilonEquals(prev.angVel, 0)){
+        if(Util.epsilonEquals(start.angAcc, 0)){
+            if(Util.epsilonEquals(start.angVel, 0)){
                 // Integrating: (a*t + v_0)*cos(angle_0)
-                double ds = 0.5*acc*dt*dt + prev.vel*dt;
-                dx = ds*Math.cos(prev.angle);
-                dy = ds*Math.sin(prev.angle);
+                double ds = 0.5*start.acc*dt*dt + start.vel*dt;
+                dx = ds*Math.cos(start.angle);
+                dy = ds*Math.sin(start.angle);
             } else {
                 // Integrating: (a*t + v_0)*cos(angVel_0*t + angle_0)
-                double inv_av = 1/prev.angVel;
-                double one = inv_av*(acc*dt + prev.vel), two = acc*inv_av*inv_av;
-                double sin = Math.sin(angle) - Math.sin(prev.angle);
-                double cos = Math.cos(angle) - Math.cos(prev.angle);
+                double inv_av = 1/start.angVel;
+                double one = inv_av*(start.acc*dt + start.vel), two = start.acc*inv_av*inv_av;
+                double sin = Math.sin(angle) - Math.sin(start.angle);
+                double cos = Math.cos(angle) - Math.cos(start.angle);
                 dx = one*sin + two*cos;
                 dy = two*sin - one*cos;
             }
         } else {
             // Integrating: (a*t + v_0)*cos(0.5*angAcc*t*t + angVel_0*t + angle_0)
-            double a_aA = acc/angAcc;
-            double sqrtPi = Math.sqrt(Math.PI);
-            double sqrtAngAcc = Math.sqrt(Math.abs(angAcc));
-            double scalar = (sqrtPi/sqrtAngAcc)*(a_aA*prev.angVel - prev.vel);
+            if(!start.kinematicsComputed){
+                start.a_aA = start.acc/start.angAcc;
+                start.sqrtAngAcc = Math.sqrt(Math.abs(start.angAcc));
+                start.scalar = (sqrtPi/start.sqrtAngAcc)*(start.a_aA*start.angVel - start.vel);
+                double trigInner = start.angle - start.angVel*start.angVel/(2*start.angAcc);
+                start.sinS = Math.sin(trigInner);
+                start.cosS = Math.cos(trigInner);
+                start.o = Math.signum(start.angAcc);
+                start.inner0 = start.o*start.angVel/(sqrtPi*start.sqrtAngAcc);
 
-            double trigInner = prev.angle - prev.angVel*prev.angVel/(2*angAcc);
-            double sin = Math.sin(trigInner), cos = Math.cos(trigInner);
+                start.kinematicsComputed = true;
+            }
 
-            double o = Math.signum(angAcc);
-            double inner0 = o*prev.angVel/(sqrtPi*sqrtAngAcc);
-            double innerT = dt*(sqrtAngAcc/sqrtPi) + inner0;
-            double fresnelC = Util.fresnelC(innerT) - Util.fresnelC(inner0);
-            double fresnelS = o*(Util.fresnelS(innerT) - Util.fresnelS(inner0));
+            double innerT = dt*(start.sqrtAngAcc/sqrtPi) + start.inner0;
+            double fresnelC = Util.fresnelC(innerT) - Util.fresnelC(start.inner0);
+            double fresnelS = start.o*(Util.fresnelS(innerT) - Util.fresnelS(start.inner0));
             
-            dx =  a_aA*(Math.sin(angle)-Math.sin(prev.angle)) + scalar*(sin*fresnelS - cos*fresnelC);
-            dy = -a_aA*(Math.cos(angle)-Math.cos(prev.angle)) - scalar*(sin*fresnelC + cos*fresnelS);
+            dx =  start.a_aA*(Math.sin(angle)-Math.sin(start.angle)) 
+                + start.scalar*(start.sinS*fresnelS - start.cosS*fresnelC);
+            dy = -start.a_aA*(Math.cos(angle)-Math.cos(start.angle)) 
+                - start.scalar*(start.sinS*fresnelC + start.cosS*fresnelS);
         }
 
-        Vec2 pos = new Vec2(dx,dy).add(prev.pos);
+        Vec2 pos = new Vec2(dx,dy).add(start.pos);
 
         return MotionState.fromAngular(
-            prev.t + dt,
-            pos, vel, acc,
-            angle, angVel, angAcc
+            start.t + dt,
+            pos, vel, start.acc,
+            angle, angVel, start.angAcc
         );
     }
 
     /** Calculates and returns the new MotionState of the robot after driving for some time, 
-     * given its previous state, change in time, constant linear acceleration, and final
-     * curvature.
-     * @param prev The previous MotionState.
+     * given its previous state and the change in time.
      * @param dt Amount of time elapsed between the old and new MotionStates.
-     * @param acc Constant linear acceleration of the drive train during this period.
-     * @param curvature The desired curvature of the robot at the end of the period.
      * @return The new MotionState.
      */
+    public MotionState forwardKinematics(double dt){
+        return MotionState.forwardKinematics(this, dt);
+    }
+
+    /*
     public static MotionState forwardKinematicsCurvature(MotionState prev, double dt, double acc, double curvature){
         double k = curvature*length/4;
         double accR = (k-0.5)*(prev.velR/dt) + (k+0.5)*(2*acc + prev.velL/dt);
         double accL = 2*acc - accR;
         return forwardKinematicsWheels(prev, dt, accL, accR);
     }
+    */
 
-    public static MotionState interp(MotionState a, MotionState b, double t){
-        double dt = Util.clamp(t, a.t, b.t) - a.t;
-        return forwardKinematicsWheels(a, dt, b.accL, b.accR);
-    }
-
-    public static Vec2 linearInterpPos(MotionState a, MotionState b, double t){
-        t = (t - a.t)/(b.t - a.t);
-        return Util.linearInterp(a.pos, b.pos, t);
-    }
 }
