@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import frc.lib.util.Util;
+import frc.lib.util.Vec2;
 
 public class PathProfile {
     private List<MotionSegment> segments;
@@ -13,8 +14,8 @@ public class PathProfile {
         reset(startState);
     }
 
-    public PathProfile(){
-        this(MotionState.fromWheels(0,new Vec2(0,0),0,0,0,0,0));
+    public PathProfile(RobotConstraints constraints){
+        this(MotionState.fromWheels(constraints,0,new Vec2(0,0),0,0,0,0,0));
     }
 
     public void reset(MotionState startState){
@@ -44,6 +45,7 @@ public class PathProfile {
     }
 
     public void appendControlWheels(double dt, double accL, double accR){
+        //System.out.println(dt + ", "+accL+", "+accR);
         if(dt > 0){
             segments.add(new MotionSegment(endState().controlWheels(accL, accR), dt));
         }
@@ -56,9 +58,9 @@ public class PathProfile {
     }
 
     public void appendControlCurvature(double dt, double acc, double curvature){
-        double k = curvature*MotionState.length/4;
-        double accR = (k-0.5)*(endState().velR/dt) + (k+0.5)*(2*acc + endState().velL/dt);
-        double accL = 2*acc - accR;
+        final double k = curvature*startState.length/4;
+        final double accR = (k-0.5)*(endState().velR/dt) + (k+0.5)*(2*acc + endState().velL/dt);
+        final double accL = 2*acc - accR;
         appendControlWheels(dt, accL, accR);
     }
 
@@ -66,10 +68,17 @@ public class PathProfile {
         t = Util.clamp(t, startTime(), endTime());
         MotionState start = startState;
         for(MotionSegment s : segments){
-            if(t > s.endTime) break;
             start = s.start;
+            if(t < s.endTime) break;
         }
         return start.forwardKinematics(t - start.t);
+    }
+
+    public boolean fitsConstraints(){
+        for(MotionSegment s : segments){
+            if(!s.fitsConstraints()) return false;
+        }
+        return true;
     }
 
 }

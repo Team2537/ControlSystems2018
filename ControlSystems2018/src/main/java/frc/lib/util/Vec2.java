@@ -1,4 +1,4 @@
-package frc.lib.pathing;
+package frc.lib.util;
 
 public class Vec2 {
     public final double x,y;
@@ -66,13 +66,29 @@ public class Vec2 {
     public double dot(Vec2 other){
         return dot(this, other);
     }
+    /** Returns the cross product of the two vectors. */
+    public static double cross(Vec2 a, Vec2 b){
+        return a.x*b.y - a.y*b.x;
+    }
+    /** Returns the cross product of this vector and another vector. */
+    public double cross(Vec2 other){
+        return cross(this, other);
+    }
     /** Returns the angle between two vectors. */
-    public static double angle(Vec2 a, Vec2 b){
+    public static double angleBetween(Vec2 a, Vec2 b){
         return Math.acos(dot(a.normal(),b.normal()));
     }
     /** Returns the angle between this vector and another vector. */
-    public double angle(Vec2 other){
-        return angle(this,other);
+    public double angleBetween(Vec2 other){
+        return angleBetween(this,other);
+    }
+    /** Returns the angle between a vector and the horizontal. */
+    public static double angle(Vec2 v){
+        return Math.atan2(v.y, v.x);
+    }
+    /** Returns the angle between this vector and the horizontal. */
+    public double angle(){
+        return angle(this);
     }
 
     @Override

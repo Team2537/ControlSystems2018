@@ -1,7 +1,5 @@
 package frc.lib.util;
 
-import frc.lib.pathing.Vec2;
-
 public class Util {
     /** Prevent this class from being instantiated. */
     private Util() {
@@ -43,7 +41,7 @@ public class Util {
     /** calculate: integral of sin(t^2 * pi/2)dt from 0 to x */
     // if -2 < x < 2, use lookup table; else, use an approximation
     public static double fresnelS(double x){
-        if(Math.abs(x) < 2) return tableFresnelS.get(x);
+        if(Math.abs(x) < 2) return Math.signum(x)*tableFresnelS.get(Math.abs(x));
         double x2 = x*x, x3 = x2*x, x4 = x3*x;
         return Math.signum(x)*0.5
                 - (0.3183099-0.0968/x4)*Math.cos(x2*Math.PI/2)/x 
